@@ -1,0 +1,751 @@
+
+#include "ContentColumnView.h"
+#include "MainWindow.h"
+#include "Messages.h"
+#include <Catalog.h>
+#include <Entry.h>
+#include <Font.h>
+#include <Handler.h>
+#include <Looper.h>
+#include <MenuItem.h>
+#include <Message.h>
+#include <MessageFilter.h>
+#include <Path.h>
+#include <PopUpMenu.h>
+#include <View.h>
+#include <Window.h>
+
+#undef B_TRANSLATION_CONTEXT
+#define B_TRANSLATION_CONTEXT "ContentColumnView"
+
+/**
+ * @class MediaRow
+ * @brief Custom BRow subclass to store the associated MediaItem.
+ */
+
+/**
+ * @brief Calculate row height based on font for HiDPI scaling.
+ * @return The calculated row height with 40% padding.
+ */
+static float CalculateRowHeight() {
+  font_height fh;
+  be_plain_font->GetHeight(&fh);
+  float fontHeight = fh.ascent + fh.descent + fh.leading;
+  return ceilf(fontHeight * 1.4f);
+}
+
+class MediaRow : public BRow {
+public:
+  explicit MediaRow(const MediaItem &mi)
+      : BRow(CalculateRowHeight()), fItem(mi) {}
+
+  const MediaItem &Item() const { return fItem; }
+
+private:
+  MediaItem fItem;
+};
+
+/**
+ * @class RightClickFilter
+ * @brief Message filter for handling mouse events on the content list view.
+ *
+ * This filter handles:
+ * - Right-click: Shows context menu via kMsgShowCtx
+ * - Left-click on selected row: Initiates drag & drop if mouse moves >16px
+ *
+ * The filter checks if the click target is within the owner view hierarchy
+ * before processing. Modifier keys (Shift, Cmd, Ctrl, Option) disable drag.
+ */
+class ContentColumnView::RightClickFilter : public BMessageFilter {
+public:
+  explicit RightClickFilter(ContentColumnView *owner)
+      : BMessageFilter(B_ANY_DELIVERY, B_ANY_SOURCE, B_MOUSE_DOWN),
+        fOwner(owner) {}
+
+  filter_result Filter(BMessage *msg, BHandler **target) override {
+    if (!fOwner || !msg || msg->what != B_MOUSE_DOWN)
+      return B_DISPATCH_MESSAGE;
+
+    int32 buttons = 0;
+    if (msg->FindInt32("buttons", &buttons) != B_OK)
+      return B_DISPATCH_MESSAGE;
+
+    BView *v = dynamic_cast<BView *>(*target);
+    if (!v)
+      return B_DISPATCH_MESSAGE;
+
+    bool inside = false;
+    for (BView *p = v; p; p = p->Parent()) {
+      if (p == static_cast<BView *>(fOwner)) {
+        inside = true;
+        break;
+      }
+    }
+    if (!inside)
+      return B_DISPATCH_MESSAGE;
+
+    BPoint screenWhere;
+    if (msg->FindPoint("screen_where", &screenWhere) != B_OK) {
+      BPoint where;
+      if (msg->FindPoint("where", &where) != B_OK)
+        return B_DISPATCH_MESSAGE;
+      screenWhere = v->ConvertToScreen(where);
+    }
+
+    if (buttons & B_SECONDARY_MOUSE_BUTTON) {
+      BMessage show(ContentColumnView::kMsgShowCtx);
+      show.AddPoint("screen_where", screenWhere);
+
+      if (fOwner->Looper())
+        fOwner->Looper()->PostMessage(&show, fOwner);
+
+      return B_SKIP_MESSAGE;
+    }
+
+    if (buttons & B_PRIMARY_MOUSE_BUTTON) {
+      int32 modifiers = 0;
+      if (msg->FindInt32("modifiers", &modifiers) == B_OK) {
+        if (modifiers &
+            (B_SHIFT_KEY | B_COMMAND_KEY | B_CONTROL_KEY | B_OPTION_KEY)) {
+          return B_DISPATCH_MESSAGE;
+        }
+      }
+
+      BPoint where;
+      if (msg->FindPoint("where", &where) != B_OK)
+        return B_DISPATCH_MESSAGE;
+
+      BRow *row = fOwner->RowAt(where);
+
+      bool isSelected = false;
+      if (row) {
+        for (BRow *r = fOwner->CurrentSelection(); r;
+             r = fOwner->CurrentSelection(r)) {
+          if (r == row) {
+            isSelected = true;
+            break;
+          }
+        }
+      }
+
+      if (isSelected) {
+        BPoint p;
+        uint32 btns;
+        v->GetMouse(&p, &btns);
+
+        BPoint startP = v->ConvertFromScreen(screenWhere);
+
+        while (btns) {
+          float deltaX = p.x - startP.x;
+          float deltaY = p.y - startP.y;
+
+          if ((deltaX * deltaX + deltaY * deltaY) > 16.0f) {
+            fOwner->fDragSourceIndex = fOwner->IndexOf(row);
+            fOwner->InitiateDrag(where, true);
+            return B_SKIP_MESSAGE;
+          }
+
+          snooze(10000);
+          v->GetMouse(&p, &btns);
+        }
+      }
+    }
+
+    return B_DISPATCH_MESSAGE;
+  }
+
+private:
+  ContentColumnView *fOwner;
+};
+
+/**
+ * @class DropFilter
+ * @brief Message filter for handling internal drag & drop reordering.
+ *
+ * Intercepts B_SIMPLE_DATA messages on the ScrollView when fDragSourceIndex
+ * is set (indicating an internal drag). On drop, sends MSG_REORDER_PLAYLIST
+ * to perform the actual reordering.
+ */
+class ContentColumnView::DropFilter : public BMessageFilter {
+public:
+  explicit DropFilter(ContentColumnView *owner)
+      : BMessageFilter(B_ANY_DELIVERY, B_ANY_SOURCE, B_SIMPLE_DATA),
+        fOwner(owner) {}
+
+  filter_result Filter(BMessage *msg, BHandler **target) override {
+    if (!fOwner || !msg || msg->what != B_SIMPLE_DATA)
+      return B_DISPATCH_MESSAGE;
+
+    if (fOwner->fDragSourceIndex < 0)
+      return B_DISPATCH_MESSAGE;
+
+    BView *v = dynamic_cast<BView *>(*target);
+    if (!v)
+      return B_DISPATCH_MESSAGE;
+
+    BPoint dropPoint;
+    v->GetMouse(&dropPoint, nullptr);
+
+    BRow *targetRow = fOwner->RowAt(dropPoint);
+    int32 targetIndex =
+        targetRow ? fOwner->IndexOf(targetRow) : fOwner->CountRows() - 1;
+    int32 sourceIndex = fOwner->fDragSourceIndex;
+
+    printf("[DropFilter] Drop detected: source=%d, target=%d\n", sourceIndex,
+           targetIndex);
+    fflush(stdout);
+
+    if (sourceIndex != targetIndex && sourceIndex >= 0 && targetIndex >= 0) {
+      BMessage reorderMsg(MSG_REORDER_PLAYLIST);
+      reorderMsg.AddInt32("from_index", sourceIndex);
+      reorderMsg.AddInt32("to_index", targetIndex);
+
+      if (fOwner->Looper()) {
+        fOwner->Looper()->PostMessage(&reorderMsg);
+      }
+    }
+
+    fOwner->fDragSourceIndex = -1;
+    return B_SKIP_MESSAGE;
+  }
+
+private:
+  ContentColumnView *fOwner;
+};
+
+/**
+ * @brief Appends indices of all selected rows to a message.
+ * @param view The content view to query selections from.
+ * @param into The message to append "index" fields to.
+ */
+static void AppendSelectedIndices(ContentColumnView *view, BMessage &into) {
+  for (BRow *r = view->CurrentSelection(); r; r = view->CurrentSelection(r)) {
+    int32 idx = view->IndexOf(r);
+    if (idx >= 0)
+      into.AddInt32("index", idx);
+  }
+}
+
+/**
+ * @brief Builds a message with file refs for all selected items.
+ * @param view The content view to query selections from.
+ * @param filesMsg The message to populate with "refs" entries.
+ */
+
+static void BuildFilesMessage(ContentColumnView *view, BMessage &filesMsg) {
+  filesMsg.MakeEmpty();
+  filesMsg.what = 0;
+  for (BRow *r = view->CurrentSelection(); r; r = view->CurrentSelection(r)) {
+    auto *mr = dynamic_cast<MediaRow *>(r);
+    if (!mr)
+      continue;
+    entry_ref ref;
+    if (get_ref_for_path(mr->Item().path.String(), &ref) == B_OK)
+      filesMsg.AddRef("refs", &ref);
+  }
+}
+
+/**
+ * @class StatusStringField
+ * @brief BStringField subclass that tracks whether the file is missing.
+ *
+ * Used to gray out text for missing files in the list view.
+ */
+class StatusStringField : public BStringField {
+public:
+  StatusStringField(const char *string, bool missing)
+      : BStringField(string), fMissing(missing) {}
+  bool IsMissing() const { return fMissing; }
+
+private:
+  bool fMissing;
+};
+
+/**
+ * @class StatusIntegerField
+ * @brief BIntegerField subclass that tracks whether the file is missing.
+ */
+class StatusIntegerField : public BIntegerField {
+public:
+  StatusIntegerField(int32 number, bool missing)
+      : BIntegerField(number), fMissing(missing) {}
+  bool IsMissing() const { return fMissing; }
+
+private:
+  bool fMissing;
+};
+
+/**
+ * @class StatusStringColumn
+ * @brief Column that renders text in gray if the file is missing.
+ */
+class StatusStringColumn : public BStringColumn {
+public:
+  StatusStringColumn(const char *title, float width, float minWidth,
+                     float maxWidth, uint32 truncate,
+                     alignment align = B_ALIGN_LEFT)
+      : BStringColumn(title, width, minWidth, maxWidth, truncate, align) {}
+
+  void DrawField(BField *field, BRect rect, BView *parent) override {
+    StatusStringField *f = dynamic_cast<StatusStringField *>(field);
+    rgb_color oldColor = parent->HighColor();
+    bool isGray = (f && f->IsMissing());
+
+    if (isGray) {
+      parent->SetHighColor(tint_color(ui_color(B_PANEL_BACKGROUND_COLOR),
+                                      B_DISABLED_LABEL_TINT));
+    }
+
+    if (field)
+      BStringColumn::DrawField(field, rect, parent);
+
+    parent->SetHighColor(oldColor);
+  }
+};
+
+/**
+ * @class StatusIntegerColumn
+ * @brief Column that renders integers in gray if the file is missing.
+ */
+class StatusIntegerColumn : public BIntegerColumn {
+public:
+  StatusIntegerColumn(const char *title, float width, float minWidth,
+                      float maxWidth, alignment align = B_ALIGN_LEFT)
+      : BIntegerColumn(title, width, minWidth, maxWidth, align) {}
+
+  void DrawField(BField *field, BRect rect, BView *parent) override {
+    StatusIntegerField *f = dynamic_cast<StatusIntegerField *>(field);
+    rgb_color oldColor = parent->HighColor();
+    bool isGray = (f && f->IsMissing());
+
+    if (isGray) {
+      parent->SetHighColor(tint_color(ui_color(B_PANEL_BACKGROUND_COLOR),
+                                      B_DISABLED_LABEL_TINT));
+    }
+
+    if (field)
+      BIntegerColumn::DrawField(field, rect, parent);
+
+    parent->SetHighColor(oldColor);
+  }
+};
+
+ContentColumnView::ContentColumnView(const char *name)
+    : BColumnListView(name, B_WILL_DRAW | B_FRAME_EVENTS) {
+  SetSelectionMode(B_MULTIPLE_SELECTION_LIST);
+
+  SetColor(B_COLOR_BACKGROUND, ui_color(B_LIST_BACKGROUND_COLOR));
+  SetColor(B_COLOR_TEXT, ui_color(B_LIST_ITEM_TEXT_COLOR));
+  SetColor(B_COLOR_SELECTION, ui_color(B_LIST_SELECTED_BACKGROUND_COLOR));
+  SetColor(B_COLOR_SELECTION_TEXT, ui_color(B_LIST_SELECTED_ITEM_TEXT_COLOR));
+  SetColor(B_COLOR_ROW_DIVIDER, B_TRANSPARENT_COLOR);
+  SetColor(B_COLOR_HEADER_BACKGROUND, ui_color(B_PANEL_BACKGROUND_COLOR));
+  SetColor(B_COLOR_HEADER_TEXT, ui_color(B_PANEL_TEXT_COLOR));
+
+  AddColumn(new StatusStringColumn(B_TRANSLATE("Title"), 200, 50, 500,
+                                   B_TRUNCATE_END),
+            0);
+  AddColumn(new StatusStringColumn(B_TRANSLATE("Artist"), 150, 50, 300,
+                                   B_TRUNCATE_END),
+            1);
+  AddColumn(new StatusStringColumn(B_TRANSLATE("Album"), 150, 50, 300,
+                                   B_TRUNCATE_END),
+            2);
+  AddColumn(new StatusStringColumn(B_TRANSLATE("Album Artist"), 150, 50, 300,
+                                   B_TRUNCATE_END),
+            3);
+  AddColumn(new StatusStringColumn(B_TRANSLATE("Genre"), 100, 30, 200,
+                                   B_TRUNCATE_END),
+            4);
+  AddColumn(new StatusStringColumn(B_TRANSLATE("Year"), 60, 30, 80,
+                                   B_TRUNCATE_END, B_ALIGN_RIGHT),
+            5);
+  AddColumn(new StatusStringColumn(B_TRANSLATE("Duration"), 60, 30, 80,
+                                   B_TRUNCATE_END, B_ALIGN_RIGHT),
+            6);
+  AddColumn(
+      new StatusIntegerColumn(B_TRANSLATE("Track"), 50, 20, 80, B_ALIGN_RIGHT),
+      7);
+  AddColumn(
+      new StatusIntegerColumn(B_TRANSLATE("Disc"), 50, 20, 80, B_ALIGN_RIGHT),
+      8);
+  AddColumn(new StatusIntegerColumn(B_TRANSLATE("Bitrate"), 80, 50, 100,
+                                    B_ALIGN_RIGHT),
+            9);
+  AddColumn(new StatusStringColumn(B_TRANSLATE("Path"), 300, 100, 1000,
+                                   B_TRUNCATE_END),
+            10);
+
+  SetInvocationMessage(new BMessage(MSG_PLAY));
+  SetSelectionMessage(new BMessage(MSG_SELECTION_CHANGED_CONTENT));
+}
+
+ContentColumnView::~ContentColumnView() {}
+
+void ContentColumnView::AddEntry(const MediaItem &mi) {
+  MediaRow *row = new MediaRow(mi);
+  bool m = mi.missing;
+
+  row->SetField(new StatusStringField(mi.title, m), 0);
+  row->SetField(new StatusStringField(mi.artist, m), 1);
+  row->SetField(new StatusStringField(mi.album, m), 2);
+  row->SetField(new StatusStringField(mi.albumArtist, m), 3);
+  row->SetField(new StatusStringField(mi.genre, m), 4);
+
+  BString yearStr;
+  yearStr << mi.year;
+  row->SetField(new StatusStringField(yearStr, m), 5);
+
+  BString durStr;
+  int32 min = mi.duration / 60;
+  int32 sec = mi.duration % 60;
+  durStr.SetToFormat("%d:%02d", min, sec);
+  row->SetField(new StatusStringField(durStr, m), 6);
+
+  row->SetField(new StatusIntegerField(mi.track, m), 7);
+  row->SetField(new StatusIntegerField(mi.disc, m), 8);
+  row->SetField(new StatusIntegerField(mi.bitrate, m), 9);
+  row->SetField(new StatusStringField(mi.path, m), 10);
+
+  AddRow(row);
+}
+
+void ContentColumnView::AddEntries(const std::vector<MediaItem> &items) {
+  fPendingItems = items;
+  fPendingIndex = 0;
+  _AddBatch(50);
+}
+
+void ContentColumnView::_AddBatch(size_t count) {
+  if (fPendingIndex >= fPendingItems.size())
+    return;
+
+  bool bulk = (count > 100);
+  BWindow *win = Window();
+  if (bulk && win)
+    win->DisableUpdates();
+
+  SetSortingEnabled(false);
+
+  size_t end = fPendingIndex + count;
+  if (end > fPendingItems.size())
+    end = fPendingItems.size();
+
+  for (size_t i = fPendingIndex; i < end; ++i) {
+    AddEntry(fPendingItems[i]);
+  }
+
+  fPendingIndex = end;
+  SetSortingEnabled(true);
+
+  if (bulk && win)
+    win->EnableUpdates();
+
+  if (fPendingIndex < fPendingItems.size()) {
+    if (Looper())
+      Looper()->PostMessage(kMsgChunkAdd, this);
+  } else {
+    if (Looper())
+      Looper()->PostMessage(MSG_COUNT_UPDATED);
+  }
+}
+
+void ContentColumnView::ClearEntries() {
+  Clear();
+  RefreshScrollbars();
+}
+
+void ContentColumnView::RefreshScrollbars() { InvalidateLayout(); }
+
+bool ContentColumnView::InitiateDrag(BPoint point, bool wasSelected) {
+  BMessage dragMsg(B_SIMPLE_DATA);
+
+  BRow *firstSelected = CurrentSelection();
+  if (firstSelected) {
+    fDragSourceIndex = IndexOf(firstSelected);
+    dragMsg.AddInt32("source_index", fDragSourceIndex);
+  } else {
+    fDragSourceIndex = -1;
+  }
+
+  MediaRow *row = nullptr;
+  while ((row = dynamic_cast<MediaRow *>(CurrentSelection(row))) != nullptr) {
+    const MediaItem &mi = row->Item();
+    entry_ref ref;
+    if (get_ref_for_path(mi.path.String(), &ref) == B_OK) {
+      dragMsg.AddRef("refs", &ref);
+    }
+  }
+
+  if (dragMsg.HasRef("refs")) {
+    BRow *firstRow = RowAt(point);
+    if (firstRow) {
+      BRect dragRect;
+      GetRowRect(firstRow, &dragRect);
+      DragMessage(&dragMsg, dragRect, this);
+    } else {
+      DragMessage(&dragMsg, Bounds(), this);
+    }
+    return true;
+  }
+  fDragSourceIndex = -1;
+  return false;
+}
+
+void ContentColumnView::KeyDown(const char *bytes, int32 numBytes) {
+  if (numBytes == 1 && bytes[0] == B_DELETE) {
+    BMessage msg(MSG_DELETE_ITEM);
+    Looper()->PostMessage(&msg);
+    return;
+  }
+
+  if (numBytes == 1) {
+    uint32 modifiers = 0;
+    BMessage *currentMsg = Window() ? Window()->CurrentMessage() : nullptr;
+    if (currentMsg)
+      currentMsg->FindInt32("modifiers", (int32 *)&modifiers);
+
+    if (modifiers & B_OPTION_KEY) {
+      if (bytes[0] == B_UP_ARROW) {
+        BMessage msg(MSG_MOVE_UP);
+        BRow *row = CurrentSelection();
+        if (row) {
+          msg.AddInt32("index", IndexOf(row));
+          Looper()->PostMessage(&msg);
+        }
+        return;
+      } else if (bytes[0] == B_DOWN_ARROW) {
+        BMessage msg(MSG_MOVE_DOWN);
+        BRow *row = CurrentSelection();
+        if (row) {
+          msg.AddInt32("index", IndexOf(row));
+          Looper()->PostMessage(&msg);
+        }
+        return;
+      }
+    }
+  }
+
+  BColumnListView::KeyDown(bytes, numBytes);
+}
+
+void ContentColumnView::MouseMoved(BPoint where, uint32 transit,
+                                   const BMessage *dragMsg) {
+  if (fDragSourceIndex >= 0 && dragMsg && dragMsg->what == B_SIMPLE_DATA) {
+    fLastDropPoint = where;
+  }
+  BColumnListView::MouseMoved(where, transit, dragMsg);
+}
+
+void ContentColumnView::AttachedToWindow() {
+  BColumnListView::AttachedToWindow();
+  if (BView *outline = ScrollView()) {
+    outline->AddFilter(new RightClickFilter(this));
+    outline->AddFilter(new DropFilter(this));
+    outline->SetViewColor(B_TRANSPARENT_COLOR);
+  }
+}
+
+void ContentColumnView::DetachedFromWindow() {
+  BColumnListView::DetachedFromWindow();
+}
+
+void ContentColumnView::MessageReceived(BMessage *msg) {
+  switch (msg->what) {
+  case kMsgShowCtx: {
+    BPoint screen;
+    if (msg->FindPoint("screen_where", &screen) != B_OK)
+      break;
+
+    BPoint where = screen;
+    if (BView *outline = ScrollView()) {
+      outline->ConvertFromScreen(&where);
+    } else {
+      ConvertFromScreen(&where);
+    }
+    BRow *row = RowAt(where);
+    if (!row)
+      break;
+
+    bool rowAlreadySelected = false;
+    for (BRow *r = CurrentSelection(); r; r = CurrentSelection(r)) {
+      if (r == row) {
+        rowAlreadySelected = true;
+        break;
+      }
+    }
+    if (!rowAlreadySelected) {
+      if (SelectionMode() != B_MULTIPLE_SELECTION_LIST)
+        DeselectAll();
+      AddToSelection(row);
+    }
+
+    BPopUpMenu menu("content-ctx", false, false);
+    menu.AddItem(new BMenuItem(B_TRANSLATE("Play"), new BMessage(MSG_PLAY)));
+
+    BMenu *addSub = new BMenu(B_TRANSLATE("Add to Playlist"));
+
+    {
+      BMessage *m = new BMessage(MSG_NEW_PLAYLIST);
+      BMessage files;
+      BuildFilesMessage(this, files);
+      if (files.HasRef("refs"))
+        m->AddMessage("files", &files);
+      addSub->AddItem(new BMenuItem(B_TRANSLATE("New Playlist..."), m));
+    }
+
+    addSub->AddSeparatorItem();
+
+    BMessage reply;
+    if (auto *mw = dynamic_cast<MainWindow *>(Window())) {
+      mw->GetPlaylistNames(reply, true);
+    }
+
+    int32 count = 0;
+    reply.GetInfo("name", nullptr, &count);
+    if (count == 0) {
+      auto *none = new BMenuItem(B_TRANSLATE("<no playlists>"), nullptr);
+      none->SetEnabled(false);
+      addSub->AddItem(none);
+    } else {
+      for (int32 i = 0; i < count; ++i) {
+        const char *pname = nullptr;
+        if (reply.FindString("name", i, &pname) == B_OK && pname) {
+          BMessage *m = new BMessage(MSG_ADD_TO_PLAYLIST);
+          AppendSelectedIndices(this, *m);
+          m->AddString("playlist", pname);
+          addSub->AddItem(new BMenuItem(pname, m));
+        }
+      }
+    }
+
+    menu.AddItem(addSub);
+
+    menu.AddSeparatorItem();
+    {
+      BMessage *m = new BMessage(MSG_REVEAL_IN_TRACKER);
+      BMessage files;
+      BuildFilesMessage(this, files);
+      if (files.HasRef("refs"))
+        m->AddMessage("files", &files);
+      menu.AddItem(new BMenuItem(B_TRANSLATE("Show in Tracker"), m));
+    }
+
+    bool inPlaylist = false;
+    if (auto *mw = dynamic_cast<MainWindow *>(Window())) {
+      inPlaylist = mw->IsPlaylistSelected();
+    }
+
+    if (inPlaylist) {
+      menu.AddSeparatorItem();
+      {
+        BMessage *m = new BMessage(MSG_MOVE_UP);
+        BRow *row = CurrentSelection();
+        if (row)
+          m->AddInt32("index", IndexOf(row));
+        menu.AddItem(new BMenuItem(B_TRANSLATE("Move Up"), m));
+      }
+      {
+        BMessage *m = new BMessage(MSG_MOVE_DOWN);
+        BRow *row = CurrentSelection();
+        if (row)
+          m->AddInt32("index", IndexOf(row));
+        menu.AddItem(new BMenuItem(B_TRANSLATE("Move Down"), m));
+      }
+      menu.AddItem(new BMenuItem(B_TRANSLATE("Remove from Playlist"),
+                                 new BMessage(MSG_DELETE_ITEM)));
+    }
+
+    menu.AddSeparatorItem();
+    menu.AddItem(new BMenuItem(B_TRANSLATE("Properties..."),
+                               new BMessage(MSG_PROPERTIES)));
+
+    if (BMenuItem *chosen =
+            menu.Go(screen, true, false, BRect(screen, screen), false)) {
+      if (Looper())
+        Looper()->PostMessage(chosen->Message(), this);
+    }
+    break;
+  }
+
+  case kMsgChunkAdd:
+    _AddBatch(200);
+    break;
+
+  case B_COLORS_UPDATED: {
+    SetColor(B_COLOR_BACKGROUND, ui_color(B_LIST_BACKGROUND_COLOR));
+    SetColor(B_COLOR_TEXT, ui_color(B_LIST_ITEM_TEXT_COLOR));
+    SetColor(B_COLOR_SELECTION, ui_color(B_LIST_SELECTED_BACKGROUND_COLOR));
+    SetColor(B_COLOR_ROW_DIVIDER, ui_color(B_LIST_BACKGROUND_COLOR));
+    SetColor(B_COLOR_HEADER_BACKGROUND, ui_color(B_PANEL_BACKGROUND_COLOR));
+    SetColor(B_COLOR_HEADER_TEXT, ui_color(B_PANEL_TEXT_COLOR));
+    Invalidate();
+    break;
+  }
+
+  case B_SIMPLE_DATA: {
+    printf("[ContentColumnView] B_SIMPLE_DATA received, fDragSourceIndex=%d\\n",
+           fDragSourceIndex);
+    printf("[ContentColumnView] fLastDropPoint=(%f,%f)\\n", fLastDropPoint.x,
+           fLastDropPoint.y);
+    fflush(stdout);
+
+    if (fDragSourceIndex < 0) {
+      printf("[ContentColumnView] Not internal drag, forwarding\\n");
+      fflush(stdout);
+      BColumnListView::MessageReceived(msg);
+      break;
+    }
+
+    int32 sourceIndex = fDragSourceIndex;
+    fDragSourceIndex = -1; // Reset for next drag
+
+    BRow *targetRow = RowAt(fLastDropPoint);
+    int32 targetIndex = targetRow ? IndexOf(targetRow) : CountRows() - 1;
+    printf("[ContentColumnView] sourceIndex=%d, targetIndex=%d\\n", sourceIndex,
+           targetIndex);
+    fflush(stdout);
+
+    if (sourceIndex == targetIndex || sourceIndex < 0 || targetIndex < 0)
+      break;
+
+    printf("[ContentColumnView] Sending MSG_REORDER_PLAYLIST\\n");
+    fflush(stdout);
+    BMessage reorderMsg(MSG_REORDER_PLAYLIST);
+    reorderMsg.AddInt32("from_index", sourceIndex);
+    reorderMsg.AddInt32("to_index", targetIndex);
+    if (Looper())
+      Looper()->PostMessage(&reorderMsg);
+    break;
+  }
+
+  default:
+    BColumnListView::MessageReceived(msg);
+  }
+}
+
+const MediaItem *ContentColumnView::SelectedItem() const {
+  MediaRow *row = dynamic_cast<MediaRow *>(CurrentSelection());
+  if (row)
+    return &row->Item();
+  return nullptr;
+}
+
+const MediaItem *ContentColumnView::ItemAt(int32 index) const {
+  const BRow *r = RowAt(index);
+  if (!r)
+    return nullptr;
+
+  const MediaRow *row = dynamic_cast<const MediaRow *>(r);
+  if (row)
+    return &row->Item();
+  return nullptr;
+}
+
+bool ContentColumnView::IsRowMissing(BRow *row) const {
+  MediaRow *mrow = dynamic_cast<MediaRow *>(row);
+  if (mrow) {
+    return mrow->Item().missing;
+  }
+  return false;
+}

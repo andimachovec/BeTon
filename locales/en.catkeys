@@ -1,0 +1,169 @@
+1	English	application/x-vnd.BeTon	2473572400
+Searching...	PropertiesWindow		Searching...
+Generate New Playlist	MainWindow		Generate New Playlist
+Add	DirectoryManagerWindow		Add
+Cancelled.	PropertiesWindow		Cancelled.
+Playlists	MainWindow		Playlists
+Apply	PropertiesWindow		Apply
+Manage Music Folders	DirectoryManagerWindow		Manage Music Folders
+Loading Music Library...	MainWindow		Loading Music Library...
+Channels: 	MainWindow		Channels: 
+Match tracks (right) to files (left).	MatcherWindow		Match tracks (right) to files (left).
+Results received.	PropertiesWindow		Results received.
+Up	MatcherWindow		Up
+NOT 	PlaylistGeneratorWindow		NOT 
+Name:	PlaylistGeneratorWindow		Name:
+Track	ContentColumnView		Track
+Generate Playlist	PlaylistGeneratorWindow		Generate Playlist
+Composer:	PropertiesWindow		Composer:
+: %zu Titel.	MainWindow		: %zu Titel.
+Album: 	MainWindow		Album: 
+MusicBrainz	PropertiesWindow		MusicBrainz
+No Genre	LibraryViewManager		No Genre
+Adjust Album Matching	MatcherWindow		Adjust Album Matching
+Title	ContentColumnView		Title
+MusicBrainz Tracks:	MatcherWindow		MusicBrainz Tracks:
+Remove from Playlist	ContentColumnView		Remove from Playlist
+MB Track ID:	PropertiesWindow		MB Track ID:
+Scanning: %d folders, %d files	MainWindow		Scanning: %d folders, %d files
+Genre: 	MainWindow		Genre: 
+Cancel	MatcherWindow		Cancel
+Duration	ContentColumnView		Duration
+Play	ContentColumnView		Play
+Add	PlaylistGeneratorWindow		Add
+Bitrate	ContentColumnView		Bitrate
+Year: 	PlaylistGeneratorWindow		Year: 
+%d tracks	MainWindow		%d tracks
+New Playlist...	ContentColumnView		New Playlist...
+◀ Previous	PropertiesWindow		◀ Previous
+Properties	PropertiesWindow		Properties
+Cancelled by user.	MainWindow		Cancelled by user.
+Artist:	PropertiesWindow		Artist:
+Generate	PlaylistGeneratorWindow		Generate
+Genre:	PlaylistGeneratorWindow		Genre:
+Metadata applied successfully (Auto-Match).	MainWindow		Metadata applied successfully (Auto-Match).
+Delete	PlaylistListView		Delete
+Artwork	MainWindow		Artwork
+MusicBrainz: %zu hits.	MainWindow		MusicBrainz: %zu hits.
+No Title	MainWindow		No Title
+Appearance	MainWindow		Appearance
+Genre	ContentColumnView		Genre
+Artist: 	PlaylistGeneratorWindow		Artist: 
+Rescan started...	MainWindow		Rescan started...
+Ready.	PropertiesWindow		Ready.
+Remove	DirectoryManagerWindow		Remove
+Genre: 	PlaylistGeneratorWindow		Genre: 
+Load Cover...	PropertiesWindow		Load Cover...
+Fetching metadata...	PropertiesWindow		Fetching metadata...
+Ready.	MainWindow		Ready.
+Set Playlist Folder	MainWindow		Set Playlist Folder
+Cancel	PropertiesWindow		Cancel
+Album Artist:	PropertiesWindow		Album Artist:
+Shuffle Playback	PlaylistGeneratorWindow		Shuffle Playback
+OK	DirectoryManagerWindow		OK
+Scanning: %d folders, %d files (%02d:%02d)	MainWindow		Scanning: %d folders, %d files (%02d:%02d)
+Help	MainWindow		Help
+Year:	PropertiesWindow		Year:
+Max. Tracks	PlaylistGeneratorWindow		Max. Tracks
+Year	PlaylistGeneratorWindow		Year
+File Information	InfoPanel		File Information
+%d Titel. Gesamtdauer %02d:%02d:%02d	MainWindow		%d Titel. Gesamtdauer %02d:%02d:%02d
+Searching on MusicBrainz...	MainWindow		Searching on MusicBrainz...
+New Playlist	MainWindow		New Playlist
+Metadata applied successfully (Manual).	MainWindow		Metadata applied successfully (Manual).
+Disc:	PropertiesWindow		Disc:
+New Playlist	PlaylistGeneratorWindow		New Playlist
+Rename	PlaylistListView		Rename
+Path	ContentColumnView		Path
+Generated Playlist	MainWindow		Generated Playlist
+From:	PlaylistGeneratorWindow		From:
+not	PlaylistGeneratorWindow		not
+MB Album ID:	PropertiesWindow		MB Album ID:
+Year: 	MainWindow		Year: 
+Artist	ContentColumnView		Artist
+Fetch from MusicBrainz	PropertiesWindow		Fetch from MusicBrainz
+(Gemischt)	MainWindow		(Gemischt)
+Artist:\nAlbum:\nTitle:\nYear:\nGenre:\n\nBitrate:\nSample Rate:\nChannels:	InfoPanel		Artist:\nAlbum:\nTitle:\nYear:\nGenre:\n\nBitrate:\nSample Rate:\nChannels:
+Remove	PlaylistGeneratorWindow		Remove
+MusicBrainz: Nothing found.	MainWindow		MusicBrainz: Nothing found.
+OK	NamePrompt		OK
+No Album	LibraryViewManager		No Album
+Next ▶	PropertiesWindow		Next ▶
+Cancel	PlaylistGeneratorWindow		Cancel
+Move Down	ContentColumnView		Move Down
+Playlist '%s' erstellt	MainWindow		Playlist '%s' erstellt
+Rule List	PlaylistGeneratorWindow		Rule List
+(Limitiert)	MainWindow		(Limitiert)
+Loading...	MainWindow		Loading...
+Quit	MainWindow		Quit
+Manage Cover (Multi-selection: Drop image to set for all)	PropertiesWindow		Manage Cover (Multi-selection: Drop image to set for all)
+Playlist-Ordner gesetzt: %s	MainWindow		Playlist-Ordner gesetzt: %s
+Apply	MatcherWindow		Apply
+Add to Playlist	ContentColumnView		Add to Playlist
+Album Functions	PropertiesWindow		Album Functions
+System Default	MainWindow		System Default
+Loading cache... %d/%zu	MainWindow		Loading cache... %d/%zu
+Properties - 	PropertiesWindow		Properties - 
+%d Titel. Gesamtdauer %02d:%02d	MainWindow		%d Titel. Gesamtdauer %02d:%02d
+Album Artist	ContentColumnView		Album Artist
+Move Up	ContentColumnView		Move Up
+Cancelled.	MainWindow		Cancelled.
+Value:	PlaylistGeneratorWindow		Value:
+Cancel	NamePrompt		Cancel
+Year	ContentColumnView		Year
+Limit:	PlaylistGeneratorWindow		Limit:
+Bitrate: 	MainWindow		Bitrate: 
+Match SeekBar	MainWindow		Match SeekBar
+File	MainWindow		File
+Error: No data received	MatcherWindow		Error: No data received
+Details	PropertiesWindow		Details
+Artwork	PropertiesWindow		Artwork
+Album:	PropertiesWindow		Album:
+ Files	PropertiesWindow		 Files
+Off	MainWindow		Off
+Disc	ContentColumnView		Disc
+Scan completed in %02d:%02d, %d new files	MainWindow		Scan completed in %02d:%02d, %d new files
+Show all	LibraryViewManager		Show all
+Add to Album	PropertiesWindow		Add to Album
+Artist: 	MainWindow		Artist: 
+%d tracks. Total duration %02d:%02d	MainWindow		%d tracks. Total duration %02d:%02d
+Apply Selection (Album)	PropertiesWindow		Apply Selection (Album)
+Title: 	MainWindow		Title: 
+Comment:	PropertiesWindow		Comment:
+No Artist	LibraryViewManager		No Artist
+Rescan	MainWindow		Rescan
+Artist:\nAlbum:\nTitle:\nYear:\nGenre:\n\nBitrate:\nSample Rate:\nChannels:	MainWindow		Artist:\nAlbum:\nTitle:\nYear:\nGenre:\n\nBitrate:\nSample Rate:\nChannels:
+Define Rule	PlaylistGeneratorWindow		Define Rule
+of	PropertiesWindow		of
+Manage Music Folders	MainWindow		Manage Music Folders
+%d tracks. Total duration %02d:%02d:%02d	MainWindow		%d tracks. Total duration %02d:%02d:%02d
+<-- No Match -->	MatcherWindow		<-- No Match -->
+Track:	PropertiesWindow		Track:
+About BeTon…	MainWindow		About BeTon…
+Sample Rate: 	MainWindow		Sample Rate: 
+Playlist	NamePrompt		Playlist
+Remove Cover	PropertiesWindow		Remove Cover
+Manage Cover	PropertiesWindow		Manage Cover
+Error: Release ID not found.	MainWindow		Error: Release ID not found.
+<no playlists>	ContentColumnView		<no playlists>
+To:	PlaylistGeneratorWindow		To:
+Apply Selection (Track)	PropertiesWindow		Apply Selection (Track)
+No Limit	PlaylistGeneratorWindow		No Limit
+Title:	PropertiesWindow		Title:
+Name:	NamePrompt		Name:
+Files:	MatcherWindow		Files:
+Criterion:	PlaylistGeneratorWindow		Criterion:
+Save	PropertiesWindow		Save
+Genre	PlaylistGeneratorWindow		Genre
+Remove from Album	PropertiesWindow		Remove from Album
+On	MainWindow		On
+Selection Color	MainWindow		Selection Color
+Search	PropertiesWindow		Search
+Metadaten erfolgreich gespeichert.	MainWindow		Metadata saved.
+Artist	PlaylistGeneratorWindow		Artist
+Show in Tracker	ContentColumnView		Show in Tracker
+Properties...	ContentColumnView		Properties...
+Album	ContentColumnView		Album
+Max. Duration (Min)	PlaylistGeneratorWindow		Max. Duration (Min)
+Down	MatcherWindow		Down
+Genre:	PropertiesWindow		Genre:
