@@ -1,6 +1,6 @@
 # BeTon
 
-A native music player for Haiku OS.
+A native music player for Haiku.
 
 <img width="578" height="371" alt="grafik" src="https://github.com/user-attachments/assets/07e42d3a-788a-4c2b-be07-dbd08c9da8a2" />
 
@@ -11,9 +11,9 @@ A native music player for Haiku OS.
 
 ## Features
 
-*Audio playback
-*Playlist creation
-*MusicBrainz metadata lookup
+*   Audio playback
+*   Playlist creation
+*   MusicBrainz metadata lookup
 
 ## Development
 
@@ -28,7 +28,7 @@ A native music player for Haiku OS.
 Install via `pkgman`:
 
 ```bash
-pkgman install taglib_devel libmusicbrainz5_devel
+pkgman install taglib_devel libmusicbrainz_devel
 ```
 
 ## Building
